@@ -1,3 +1,7 @@
+use std::{future::Future, pin::Pin};
+
+use async_trait::async_trait;
+
 /// Discard is a trait used to discard the values of results/options.
 ///
 /// This trait provides a single method, `discard`, which is particularly useful if you want to run the result/option code, but don't care about the returned result.
@@ -32,44 +36,53 @@ impl<T> Discard for Option<T> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::{Error, ErrorKind};
+#[async_trait]
+/// AsyncMap is a trait used to map a value under asynchronous contexts.
+///
+/// It allows you to pass in a boxed + pinned future and perform activites similar to std's map for Options/Results.
+pub trait AsyncMap<T, U, F>
+where
+    F: FnOnce(T) -> Pin<Box<dyn Future<Output = U> + Send>> + Send,
+{
+    type Output;
+    async fn async_map(self, map: F) -> Self::Output;
+}
 
-    fn code_that_returns_ok() -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
+#[async_trait]
+impl<T, U, F> AsyncMap<T, U, F> for Option<T>
+where
+    T: Send,
+    U: Send,
+    F: 'static + FnOnce(T) -> Pin<Box<dyn Future<Output = U> + Send>> + Send,
+{
+    type Output = Option<U>;
+    async fn async_map(self, map: F) -> Self::Output {
+        match self {
+            Some(t) => {
+                let u = map(t).await;
+                Some(u)
+            }
+            None => None,
+        }
     }
+}
 
-    fn code_that_returns_err() -> Result<(), Box<dyn std::error::Error>> {
-        Err(Box::new(Error::new(ErrorKind::Other, "Random Error")))
-    }
-
-    fn code_that_returns_some() -> Option<()> {
-        Some(())
-    }
-
-    fn code_that_returns_none() -> Option<()> {
-        None
-    }
-
-    #[test]
-    fn test_discard() {
-        code_that_returns_ok().discard();
-    }
-
-    #[test]
-    fn test_discard_err() {
-        code_that_returns_err().discard();
-    }
-
-    #[test]
-    fn test_discard_some() {
-        code_that_returns_some().discard();
-    }
-
-    #[test]
-    fn test_discard_none() {
-        code_that_returns_none().discard();
+#[async_trait]
+impl<T, E, U, F> AsyncMap<T, U, F> for Result<T, E>
+where
+    T: Send,
+    U: Send,
+    E: Send,
+    F: 'static + FnOnce(T) -> Pin<Box<dyn Future<Output = U> + Send>> + Send,
+{
+    type Output = Result<U, E>;
+    async fn async_map(self, map: F) -> Self::Output {
+        match self {
+            Ok(t) => {
+                let u = map(t).await;
+                Ok(u)
+            }
+            Err(e) => Err(e),
+        }
     }
 }

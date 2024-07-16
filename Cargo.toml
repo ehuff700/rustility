@@ -1,6 +1,6 @@
 [package]
 name = "rustility"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Evan Huff <ehuff007@gmail.com>"]
 description = "A collection of utilities I often find myself using in Rust"
@@ -15,6 +15,7 @@ categories = ["rust-patterns"]
 tokio = {version = "1", features = ["macros", "rt"]}
 
 [dependencies]
+async-trait = "0.1.81"
 
 [features]
 default = ["full"]
